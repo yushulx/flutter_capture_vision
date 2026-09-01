@@ -1,0 +1,20 @@
+name: flutter_capture_vision_linux
+description: Linux implementation of flutter_capture_vision.
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.10.0
+  flutter: '>=3.38.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_capture_vision_platform_interface: ^0.1.0
+
+flutter:
+  plugin:
+    implements: flutter_capture_vision
+    platforms:
+      linux:
+        pluginClass: FlutterCaptureVisionPlugin

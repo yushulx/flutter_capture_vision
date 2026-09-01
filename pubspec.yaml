@@ -1,0 +1,16 @@
+name: flutter_capture_vision_workspace
+description: Workspace for the federated flutter_capture_vision plugin.
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+workspace:
+  - packages/flutter_capture_vision
+  - packages/flutter_capture_vision_platform_interface
+  - packages/flutter_capture_vision_android
+  - packages/flutter_capture_vision_ios
+  - packages/flutter_capture_vision_web
+  - packages/flutter_capture_vision_windows
+  - packages/flutter_capture_vision_macos
+  - packages/flutter_capture_vision_linux
