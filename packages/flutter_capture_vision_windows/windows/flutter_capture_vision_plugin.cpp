@@ -41,6 +41,7 @@ const EncodableValue& Key(const char* key) {
   static const EncodableValue kHeight("height");
   static const EncodableValue kStride("stride");
   static const EncodableValue kPixelFormat("pixelFormat");
+  static const EncodableValue kRotation("rotation");
   const std::string requested(key);
   if (requested == "licenseKey") return kLicenseKey;
   if (requested == "settingsJson") return kSettingsJson;
@@ -54,7 +55,8 @@ const EncodableValue& Key(const char* key) {
   if (requested == "width") return kWidth;
   if (requested == "height") return kHeight;
   if (requested == "stride") return kStride;
-  return kPixelFormat;
+  if (requested == "pixelFormat") return kPixelFormat;
+  return kRotation;
 }
 
 const EncodableValue& Required(const EncodableMap& map, const char* key) {
