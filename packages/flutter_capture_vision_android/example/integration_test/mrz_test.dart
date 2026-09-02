@@ -47,7 +47,9 @@ void main() {
         // ignore: avoid_print
         print('MRZ-TEST $label documentType=${mrz.documentType}');
         // ignore: avoid_print
-        print('MRZ-TEST $label location=${mrz.location?.points.map((p) => '(${p.x},${p.y})').join(' ')}');
+        print(
+          'MRZ-TEST $label location=${mrz.location?.points.map((p) => '(${p.x},${p.y})').join(' ')}',
+        );
         // ignore: avoid_print
         print('MRZ-TEST $label confidence=${mrz.confidence}');
       }

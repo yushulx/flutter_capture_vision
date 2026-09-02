@@ -376,11 +376,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
             ),
           ),
         Expanded(child: _buildPreview()),
-        _ResultPanel(
-          mode: _mode,
-          result: _result,
-          status: _sceneStatus,
-        ),
+        _ResultPanel(mode: _mode, result: _result, status: _sceneStatus),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Row(
@@ -458,11 +454,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
 }
 
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({
-    required this.mode,
-    required this.result,
-    this.status,
-  });
+  const _ResultPanel({required this.mode, required this.result, this.status});
 
   final _VisionMode mode;
   final CaptureVisionResult? result;
