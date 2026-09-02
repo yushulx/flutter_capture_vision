@@ -507,8 +507,10 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         // clip the overflow. The preview never letterboxes.
         final frameW = rotated ? height : width;
         final frameH = rotated ? width : height;
-        final scale = (constraints.maxWidth / frameW)
-            .clamp(constraints.maxHeight / frameH, double.infinity);
+        final scale = (constraints.maxWidth / frameW).clamp(
+          constraints.maxHeight / frameH,
+          double.infinity,
+        );
         final drawWidth = frameW * scale;
         final drawHeight = frameH * scale;
         return ClipRect(
@@ -560,28 +562,28 @@ class _ResultPanel extends StatelessWidget {
     final text = result == null
         ? (status ?? '')
         : switch (mode) {
-          _VisionMode.barcode =>
-            result!.barcodes.isEmpty
-                ? 'No barcode found.'
-                : result!.barcodes
-                      .take(2)
-                      .map((item) => '${item.format}: ${item.text}')
-                      .join('\n'),
-          _VisionMode.mrz =>
-            result!.mrzResults.isEmpty
-                ? 'No MRZ found.'
-                : result!.mrzResults
-                      .take(1)
-                      .map(
-                        (item) => item.rawText.isEmpty
-                            ? item.fields.values.join('\n')
-                            : item.rawText,
-                      )
-                      .join('\n'),
-          _VisionMode.document =>
-            '${result!.documentDetections.length} document '
-                'boundaries found.',
-        };
+            _VisionMode.barcode =>
+              result!.barcodes.isEmpty
+                  ? 'No barcode found.'
+                  : result!.barcodes
+                        .take(2)
+                        .map((item) => '${item.format}: ${item.text}')
+                        .join('\n'),
+            _VisionMode.mrz =>
+              result!.mrzResults.isEmpty
+                  ? 'No MRZ found.'
+                  : result!.mrzResults
+                        .take(1)
+                        .map(
+                          (item) => item.rawText.isEmpty
+                              ? item.fields.values.join('\n')
+                              : item.rawText,
+                        )
+                        .join('\n'),
+            _VisionMode.document =>
+              '${result!.documentDetections.length} document '
+                  'boundaries found.',
+          };
     // A fixed height keeps the camera preview above stable no matter how
     // much text a result contains; overflowing text scrolls inside.
     return Container(
@@ -949,11 +951,7 @@ class _DocumentCornersPainter extends CustomPainter {
 }
 
 class _RgbFrame {
-  _RgbFrame({
-    required this.rgb,
-    required this.width,
-    required this.height,
-  });
+  _RgbFrame({required this.rgb, required this.width, required this.height});
 
   final Uint8List rgb;
   final int width;
@@ -1039,5 +1037,3 @@ String _filterLabel(DocumentFilter filter) => switch (filter) {
   DocumentFilter.grayscale => 'Grayscale',
   DocumentFilter.blackAndWhite => 'B/W',
 };
-
-
