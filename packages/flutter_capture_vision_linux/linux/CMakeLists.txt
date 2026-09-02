@@ -29,5 +29,6 @@ file(GLOB DCV_SHARED_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DCV_ARCH}/*.so
 set(flutter_capture_vision_linux_bundled_libraries ${DCV_SHARED_LIBRARIES} PARENT_SCOPE)
 
 # DCV resolves models, presets, parser resources, and character-confusion
-# data relative to its installed shared libraries.
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/resources/" DESTINATION "lib/")
+# data relative to its installed shared libraries. The resources set lives at
+# the package root (sibling of linux/), as in the Windows plugin's CMake.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../resources/" DESTINATION "lib/")
