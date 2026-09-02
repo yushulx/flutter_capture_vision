@@ -83,8 +83,10 @@ jobs:
           # The macOS plugin ships vendored Dynamsoft dylibs via CocoaPods;
           # keep SPM off (see flutter_barcode_sdk for the same workaround).
           flutter config --no-enable-swift-package-manager
-          # The example pins a DEVELOPMENT_TEAM that cannot be signed on CI.
-          flutter build macos --debug --no-codesign
+          # The example pins a DEVELOPMENT_TEAM that cannot be signed on
+          # CI; disable signing for the build instead (flutter build macos
+          # does not support --no-codesign).
+          CODE_SIGNING_ALLOWED=No flutter build macos --debug
         working-directory: packages/flutter_capture_vision/example
       - name: Verify macOS bundle resources
         run: |
