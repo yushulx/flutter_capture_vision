@@ -248,7 +248,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
       _isCapturing = true;
       try {
         final frame = await _camera.captureFrame(byteOrder: _byteOrder);
-        final source = _RgbFrame.fromCameraFrame(frame);
+        final source = _RgbFrame.fromCameraFrame(frame, rotation: _rotation);
         if (source != null) {
           final response = await _vision.captureBuffer(
             VisionImageBuffer(
@@ -502,7 +502,13 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
       builder: (context, constraints) {
         final width = _frameWidth > 0 ? _frameWidth : 4;
         final height = _frameHeight > 0 ? _frameHeight : 3;
-        final rotated = _textureId >= 0 && _rotation % 180 == 90;
+        // The live texture and the frozen camera frame both show the raw
+        // unrotated sensor buffer, so both need the same platform rotation.
+        // Frames from the sample scene or the gallery are already upright.
+        final rotation = _textureId >= 0
+            ? _rotation
+            : (_lastFrame?.rotation ?? 0);
+        final rotated = rotation % 180 == 90;
         // Cover-fit: scale the frame until it fills the whole widget, then
         // clip the overflow. The preview never letterboxes.
         final frameW = rotated ? height : width;
@@ -524,20 +530,19 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (_textureId >= 0)
-                    RotatedBox(
-                      quarterTurns: (_rotation ~/ 90) % 4,
-                      child: _camera.buildPreview(_textureId),
-                    )
-                  else
-                    Image.memory(_lastFrame!.pngBytes, fit: BoxFit.fill),
+                  RotatedBox(
+                    quarterTurns: (rotation ~/ 90) % 4,
+                    child: _textureId >= 0
+                        ? _camera.buildPreview(_textureId)
+                        : Image.memory(_lastFrame!.pngBytes, fit: BoxFit.fill),
+                  ),
                   CustomPaint(
                     painter: _VisionOverlayPainter(
                       mode: _mode,
                       result: _result,
                       sourceWidth: width,
                       sourceHeight: height,
-                      rotation: _rotation,
+                      rotation: rotation,
                     ),
                   ),
                 ],
@@ -951,11 +956,22 @@ class _DocumentCornersPainter extends CustomPainter {
 }
 
 class _RgbFrame {
-  _RgbFrame({required this.rgb, required this.width, required this.height});
+  _RgbFrame({
+    required this.rgb,
+    required this.width,
+    required this.height,
+    this.rotation = 0,
+  });
 
   final Uint8List rgb;
   final int width;
   final int height;
+
+  /// Clockwise degrees (0/90/180/270) to rotate the raw buffer so it displays
+  /// upright. Camera frames carry the rotation reported by the camera plugin
+  /// (iOS sensors deliver landscape buffers); sample scenes and picked files
+  /// are already upright.
+  final int rotation;
 
   Uint8List? _pngBytes;
 
@@ -979,7 +995,10 @@ class _RgbFrame {
   static _RgbFrame fromSample(SampleImage sample) =>
       _RgbFrame(rgb: sample.rgb, width: sample.width, height: sample.height);
 
-  static _RgbFrame? fromCameraFrame(Map<String, dynamic> values) {
+  static _RgbFrame? fromCameraFrame(
+    Map<String, dynamic> values, {
+    int rotation = 0,
+  }) {
     final bytes = values['data'];
     final width = values['width'];
     final height = values['height'];
@@ -990,7 +1009,12 @@ class _RgbFrame {
       return null;
     }
     // Keep the raw RGB buffer only; encoding happens lazily via pngBytes.
-    return _RgbFrame(rgb: bytes, width: width, height: height);
+    return _RgbFrame(
+      rgb: bytes,
+      width: width,
+      height: height,
+      rotation: rotation,
+    );
   }
 
   static Future<_RgbFrame> fromFile(XFile file) async {
