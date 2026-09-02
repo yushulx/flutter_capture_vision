@@ -1,0 +1,57 @@
+PODS:
+  - DynamsoftCaptureVisionBundle (3.4.1200)
+  - DynamsoftMRZScannerBundle (3.4.1300):
+    - DynamsoftCaptureVisionBundle (= 3.4.1200)
+  - file_saver (0.0.1):
+    - Flutter
+  - Flutter (1.0.0)
+  - flutter_capture_vision_ios (0.1.0):
+    - DynamsoftMRZScannerBundle (= 3.4.1300)
+    - Flutter
+  - flutter_lite_camera (0.2.1):
+    - Flutter
+  - image_picker_ios (0.0.1):
+    - Flutter
+  - share_plus (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - file_saver (from `.symlinks/plugins/file_saver/ios`)
+  - Flutter (from `Flutter`)
+  - flutter_capture_vision_ios (from `.symlinks/plugins/flutter_capture_vision_ios/ios`)
+  - flutter_lite_camera (from `.symlinks/plugins/flutter_lite_camera/ios`)
+  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - share_plus (from `.symlinks/plugins/share_plus/ios`)
+
+SPEC REPOS:
+  trunk:
+    - DynamsoftCaptureVisionBundle
+    - DynamsoftMRZScannerBundle
+
+EXTERNAL SOURCES:
+  file_saver:
+    :path: ".symlinks/plugins/file_saver/ios"
+  Flutter:
+    :path: Flutter
+  flutter_capture_vision_ios:
+    :path: ".symlinks/plugins/flutter_capture_vision_ios/ios"
+  flutter_lite_camera:
+    :path: ".symlinks/plugins/flutter_lite_camera/ios"
+  image_picker_ios:
+    :path: ".symlinks/plugins/image_picker_ios/ios"
+  share_plus:
+    :path: ".symlinks/plugins/share_plus/ios"
+
+SPEC CHECKSUMS:
+  DynamsoftCaptureVisionBundle: 4290024ee7ad9a7c0f3c68ad4a70561a139df156
+  DynamsoftMRZScannerBundle: db35bfe6da8967db7a1494f0f861de0a6a1d91b5
+  file_saver: 6cdbcddd690cb02b0c1a0c225b37cd805c2bf8b6
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_capture_vision_ios: 8f1e75d67ef82ecdadb4b85bcd2e87200f7db743
+  flutter_lite_camera: d20d3a2c311c374fb76884bc6d6ccd8c543b5ad5
+  image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
+  share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
+
+PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+
+COCOAPODS: 1.16.2

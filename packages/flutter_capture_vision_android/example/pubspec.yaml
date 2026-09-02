@@ -1,0 +1,33 @@
+name: flutter_capture_vision_android_example
+description: Demonstrates flutter_capture_vision through the endorsed android implementation package.
+publish_to: 'none'
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.10.0
+  flutter: '>=3.38.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  file_saver: ^0.3.1
+  flutter_capture_vision: ^0.1.0
+  flutter_lite_camera: ^0.2.1
+  image: ^4.5.4
+  image_picker: ^1.1.2
+  share_plus: ^13.3.0
+  flutter_capture_vision_android: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/mrz_sample.jpg

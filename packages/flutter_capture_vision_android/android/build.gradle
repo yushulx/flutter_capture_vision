@@ -1,0 +1,45 @@
+group = "com.dynamsoft.flutter_capture_vision"
+version = "0.1"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.1.0")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://download2.dynamsoft.com/maven/aar" }
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace "com.dynamsoft.flutter_capture_vision"
+    compileSdk = 35
+
+    defaultConfig {
+        minSdk = 21
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    // The MRZ Scanner bundle is a superset of the Capture Vision bundle: it
+    // also ships the MRZ neural models, parser resources, and the
+    // `mrzscanner-mobile-templates.json` template document, without which the
+    // plain bundle's built-in MRZ templates produce no results.
+    implementation "com.dynamsoft:mrzscannerbundle:3.4.1300"
+}

@@ -1,0 +1,130 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --set-exit-if-changed .
+      - run: flutter analyze
+      - name: Facade unit tests
+        run: flutter test
+        working-directory: packages/flutter_capture_vision
+      - name: Platform interface unit tests
+        run: flutter test
+        working-directory: packages/flutter_capture_vision_platform_interface
+
+  build-mobile-web:
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: flutter pub get
+      - name: Build Android example
+        run: flutter build apk --debug
+        working-directory: packages/flutter_capture_vision/example
+      - name: Build Web example
+        run: flutter build web
+        working-directory: packages/flutter_capture_vision/example
+      - name: Build Linux example
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+          flutter config --enable-linux-desktop
+          flutter build linux --debug
+        working-directory: packages/flutter_capture_vision/example
+
+  build-apple:
+    runs-on: macos-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build iOS example
+        run: flutter build ios --no-codesign --debug
+        working-directory: packages/flutter_capture_vision/example
+      - name: Build macOS example
+        run: |
+          flutter config --enable-macos-desktop
+          flutter build macos --debug
+        working-directory: packages/flutter_capture_vision/example
+      - name: Verify macOS bundle resources
+        run: |
+          app=$(find packages/flutter_capture_vision/example/build/macos -name '*.app' -maxdepth 4 | head -1)
+          test -n "$app"
+          codesign --verify --deep "$app" || true
+          find "$app" \( -name 'Templates' -o -name 'Models' -o -name 'ParserResources' \) -print | sort
+
+  build-windows:
+    runs-on: windows-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build Windows example
+        run: flutter build windows --debug
+        working-directory: packages/flutter_capture_vision/example
+      - name: Verify Windows bundle resources
+        shell: pwsh
+        run: |
+          $runner = 'packages/flutter_capture_vision/example/build/windows/runner/Debug'
+          foreach ($dir in 'Templates', 'Models', 'ParserResources') {
+            if (-not (Test-Path (Join-Path $runner $dir))) { throw "Missing $dir in Windows bundle" }
+          }
+          if (-not (Get-ChildItem $runner -Filter '*.dll')) { throw 'Missing DLLs in Windows bundle' }
+
+  archive-size-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Measure pub archives (100 MB limit, warn over 80 MB)
+        run: |
+          set -e
+          for pkg in flutter_capture_vision flutter_capture_vision_platform_interface \
+                     flutter_capture_vision_android flutter_capture_vision_ios \
+                     flutter_capture_vision_web flutter_capture_vision_windows \
+                     flutter_capture_vision_macos flutter_capture_vision_linux; do
+            tar --exclude=.dart_tool --exclude=build --exclude='*/build/*' \
+                -czf "/tmp/$pkg.tar.gz" -C packages "$pkg"
+            bytes=$(stat -c%s "/tmp/$pkg.tar.gz")
+            mb=$((bytes / 1024 / 1024))
+            echo "$pkg: ${mb} MB"
+            if [ "$bytes" -ge 104857600 ]; then
+              echo "::error::$pkg archive exceeds the 100 MB pub.dev limit — split per-architecture (see docs/release-runbook.md)"
+              exit 1
+            elif [ "$bytes" -ge 83886080 ]; then
+              echo "::warning::$pkg archive is ${mb} MB, approaching the 100 MB pub.dev limit"
+            fi
+          done
