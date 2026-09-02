@@ -8,3 +8,13 @@ pubspec.lock
 .env.*
 *.key
 *.pem
+tasks/
+docs/
+
+# Local tooling and Finder metadata.
+.workbuddy/
+.DS_Store
+**/.DS_Store
+**/xcuserdata/
+**/*.iml
+**/.idea/

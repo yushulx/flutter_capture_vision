@@ -1,7 +1,16 @@
 name: flutter_capture_vision
-description: Flutter access to Dynamsoft Capture Vision barcode, MRZ, and document detection.
+description: Flutter plugin for Dynamsoft Capture Vision — barcode, MRZ, and document boundary detection from image files or raw buffers on six platforms.
 version: 0.1.0
 resolution: workspace
+homepage: https://www.dynamsoft.com/capture-vision/
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
+topics:
+  - barcode
+  - mrz
+  - document-detection
+  - capture-vision
+  - dynamsoft
 
 environment:
   sdk: ^3.10.0

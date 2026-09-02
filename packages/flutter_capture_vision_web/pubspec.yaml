@@ -1,7 +1,9 @@
 name: flutter_capture_vision_web
-description: Web implementation of flutter_capture_vision.
+description: Web implementation of flutter_capture_vision with a self-hosted Dynamsoft Capture Vision WASM bundle for barcode, MRZ, and document detection.
 version: 0.1.0
 resolution: workspace
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision_web
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
 
 environment:
   sdk: ^3.10.0
@@ -13,6 +15,7 @@ dependencies:
   flutter_capture_vision_platform_interface: ^0.1.0
   flutter_web_plugins:
     sdk: flutter
+  web: ^1.1.1
 
 flutter:
   plugin:
@@ -21,3 +24,13 @@ flutter:
       web:
         pluginClass: FlutterCaptureVisionWeb
         fileName: flutter_capture_vision_web.dart
+
+  assets:
+    # Flutter bundles only files directly inside each declared directory, so
+    # every directory the engine fetches from must be listed individually.
+    - assets/dcv/dynamsoft-capture-vision-bundle@3.6.2000/dist/
+    - assets/dcv/dynamsoft-capture-vision-data@1.2.2/char-resources/
+    - assets/dcv/dynamsoft-capture-vision-data@1.2.2/models/
+    - assets/dcv/dynamsoft-capture-vision-data@1.2.2/parser-resources/
+    - assets/dcv/dynamsoft-capture-vision-data@1.2.2/templates/
+    - assets/dcv/dynamsoft-capture-vision-data@1.2.2/ui/

@@ -1,7 +1,9 @@
 name: flutter_capture_vision_macos
-description: macOS implementation of flutter_capture_vision.
+description: macOS implementation of flutter_capture_vision with vendored Dynamsoft Capture Vision dylibs and full templates, models, and parser resources.
 version: 0.1.0
 resolution: workspace
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision_macos
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
 
 environment:
   sdk: ^3.10.0

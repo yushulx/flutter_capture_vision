@@ -1,7 +1,9 @@
 name: flutter_capture_vision_windows
-description: Windows implementation of flutter_capture_vision.
+description: Windows implementation of flutter_capture_vision with vendored Dynamsoft Capture Vision DLLs and full templates, models, and parser resources.
 version: 0.1.0
 resolution: workspace
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision_windows
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
 
 environment:
   sdk: ^3.10.0

@@ -59,6 +59,8 @@ class VisionPoint {
   }
 
   final double x;
+
+  /// Vertical coordinate in source-image pixels.
   final double y;
 }
 
@@ -83,6 +85,7 @@ class VisionQuadrilateral {
     );
   }
 
+  /// Corner points ordered clockwise from the top-left corner.
   final List<VisionPoint> points;
 }
 
@@ -113,10 +116,19 @@ class BarcodeResult {
     );
   }
 
+  /// Symbology name reported by the SDK, for example `QR_CODE`.
   final String format;
+
+  /// Decoded barcode payload as text.
   final String text;
+
+  /// Barcode corners in source-image coordinates.
   final VisionQuadrilateral location;
+
+  /// Decoded payload bytes when the SDK exposes them.
   final Uint8List? rawBytes;
+
+  /// Recognition confidence in the range 0..1 when the SDK reports one.
   final double? confidence;
 }
 
@@ -124,7 +136,7 @@ class BarcodeResult {
 class MrzResult {
   const MrzResult({
     required this.rawText,
-    required this.location,
+    this.location,
     this.documentType,
     this.fields = const {},
     this.confidence,
@@ -141,15 +153,29 @@ class MrzResult {
       rawText: map['rawText'] as String? ?? '',
       documentType: map['documentType'] as String?,
       fields: fields,
-      location: VisionQuadrilateral.fromMap(_map(map['location'])),
+      location: map['location'] is Map
+          ? VisionQuadrilateral.fromMap(_map(map['location']))
+          : null,
       confidence: (map['confidence'] as num?)?.toDouble(),
     );
   }
 
+  /// The composed MRZ text lines as printed on the document.
   final String rawText;
+
+  /// MRZ document type, for example `TD1`, `TD2`, or `TD3`.
   final String? documentType;
+
+  /// Parsed field values keyed by field name, for example `passportNumber`.
   final Map<String, String> fields;
-  final VisionQuadrilateral location;
+
+  /// Source location when the SDK exposes one for the parsed item.
+  ///
+  /// DCV's code-parser result can contain structured MRZ fields without a
+  /// single quadrilateral for the composed parsed item.
+  final VisionQuadrilateral? location;
+
+  /// Recognition confidence in the range 0..1 when the SDK reports one.
   final double? confidence;
 }
 
@@ -164,7 +190,10 @@ class DocumentDetectionResult {
     );
   }
 
+  /// Document corners in source-image coordinates.
   final VisionQuadrilateral location;
+
+  /// Detection confidence in the range 0..1 when the SDK reports one.
   final double? confidence;
 }
 

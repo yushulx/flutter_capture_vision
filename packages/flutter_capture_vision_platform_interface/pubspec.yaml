@@ -1,7 +1,9 @@
 name: flutter_capture_vision_platform_interface
-description: Common platform interface and typed contracts for flutter_capture_vision.
+description: Common platform interface, typed contracts, and versioned channel protocol for the flutter_capture_vision federated plugin.
 version: 0.1.0
 resolution: workspace
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision_platform_interface
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
 
 environment:
   sdk: ^3.10.0

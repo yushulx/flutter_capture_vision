@@ -1,7 +1,9 @@
 name: flutter_capture_vision_linux
-description: Linux implementation of flutter_capture_vision.
+description: Linux implementation of flutter_capture_vision with vendored x64 and arm64 Dynamsoft Capture Vision libraries and full resource sets.
 version: 0.1.0
 resolution: workspace
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision_linux
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
 
 environment:
   sdk: ^3.10.0

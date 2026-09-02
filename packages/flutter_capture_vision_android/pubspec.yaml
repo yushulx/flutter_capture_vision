@@ -1,7 +1,9 @@
 name: flutter_capture_vision_android
-description: Android implementation of flutter_capture_vision.
+description: Android implementation of flutter_capture_vision, bridging Dynamsoft Capture Vision for barcode, MRZ, and document boundary detection.
 version: 0.1.0
 resolution: workspace
+repository: https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision_android
+issue_tracker: https://github.com/yushulx/flutter_capture_vision/issues
 
 environment:
   sdk: ^3.10.0
