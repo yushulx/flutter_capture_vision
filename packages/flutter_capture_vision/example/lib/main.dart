@@ -53,7 +53,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
   // Dynamsoft Capture Vision:
   // https://www.dynamsoft.com/customer/license/trialLicense/?product=dcv&package=cross-platform
   static const String _licenseKey =
-      'DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9';
+      'DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==';
 
   final FlutterLiteCamera _camera = FlutterLiteCamera();
   final FlutterCaptureVision _vision = FlutterCaptureVision();
@@ -74,10 +74,10 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
   CaptureVisionResult? _result;
   String? _sceneStatus;
 
-  // Channel arrangement for the Android YUV conversion. GRB (2) is the
+  // Channel arrangement for the Android YUV conversion. BGR (5) is the
   // plugin default, verified against on-device colors; other devices can
   // pass a different order through captureFrame(byteOrder:).
-  final int _byteOrder = 2;
+  final int _byteOrder = 5;
 
   @override
   void initState() {
