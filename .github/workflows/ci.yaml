@@ -51,7 +51,7 @@ jobs:
       - name: Build Linux example
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
           flutter config --enable-linux-desktop
           flutter build linux --debug
         working-directory: packages/flutter_capture_vision/example
@@ -72,7 +72,11 @@ jobs:
       - name: Build macOS example
         run: |
           flutter config --enable-macos-desktop
-          flutter build macos --debug
+          # The macOS plugin ships vendored Dynamsoft dylibs via CocoaPods;
+          # keep SPM off (see flutter_barcode_sdk for the same workaround).
+          flutter config --no-enable-swift-package-manager
+          # The example pins a DEVELOPMENT_TEAM that cannot be signed on CI.
+          flutter build macos --debug --no-codesign
         working-directory: packages/flutter_capture_vision/example
       - name: Verify macOS bundle resources
         run: |
@@ -97,7 +101,7 @@ jobs:
       - name: Verify Windows bundle resources
         shell: pwsh
         run: |
-          $runner = 'packages/flutter_capture_vision/example/build/windows/runner/Debug'
+          $runner = 'packages/flutter_capture_vision/example/build/windows/x64/runner/Debug'
           foreach ($dir in 'Templates', 'Models', 'ParserResources') {
             if (-not (Test-Path (Join-Path $runner $dir))) { throw "Missing $dir in Windows bundle" }
           }

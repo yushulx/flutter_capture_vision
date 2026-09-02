@@ -18,7 +18,11 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE flutter PkgConfig::GTK
   DynamsoftCore DynamsoftLicense DynamsoftCaptureVisionRouter DynamsoftUtility
   DynamsoftBarcodeReader DynamsoftLabelRecognizer DynamsoftDocumentNormalizer
   DynamsoftCodeParser DynamsoftCodeParserDedicator DynamsoftIdentityUtility
-  DynamsoftImageProcessing DynamsoftNeuralNetwork DynamicPdf)
+  DynamsoftImageProcessing DynamsoftNeuralNetwork)
+# DynamicPdf is deliberately not linked: the plugin never calls its API and
+# libDynamicPdf.so carries a versioned dependency (libDynamicPdfR_*.so) that
+# is not shipped, which breaks the executable link step. DCV loads the PDF
+# module on demand when a PDF file is actually captured.
 set_target_properties(${PLUGIN_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_RPATH "$ORIGIN")
 
 file(GLOB DCV_SHARED_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DCV_ARCH}/*.so")
