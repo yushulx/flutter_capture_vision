@@ -69,9 +69,15 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
   int _frameWidth = 0;
   int _frameHeight = 0;
   int _rotation = 0;
+  ResolutionPreset _preset = ResolutionPreset.high;
   _RgbFrame? _lastFrame;
   CaptureVisionResult? _result;
   String? _sceneStatus;
+
+  // Channel arrangement for the Android YUV conversion. GRB (2) is the
+  // plugin default, verified against on-device colors; other devices can
+  // pass a different order through captureFrame(byteOrder:).
+  final int _byteOrder = 2;
 
   @override
   void initState() {
@@ -166,13 +172,9 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         _showMessage('The camera could not be opened.');
         return;
       }
-      // MRZ characters are small; the recognition models need high-resolution
-      // frames, so request 1080p for the MRZ mode and 720p otherwise.
-      await _camera.setResolutionPreset(
-        _mode == _VisionMode.mrz
-            ? ResolutionPreset.veryHigh
-            : ResolutionPreset.high,
-      );
+      if (!await _camera.setResolutionPreset(_preset)) {
+        debugPrint('setResolutionPreset($_preset) failed.');
+      }
       final textureId = await _camera.startPreview();
       final width = await _camera.getWidth();
       final height = await _camera.getHeight();
@@ -198,6 +200,26 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
     }
   }
 
+  /// Applies a resolution preset. While the camera is open the device
+  /// renegotiates the stream; the actual frame size is read back afterwards
+  /// because the device may fall back to a different size.
+  Future<void> _applyResolution(ResolutionPreset preset) async {
+    setState(() => _preset = preset);
+    if (!_cameraOpened) return;
+    final ok = await _camera.setResolutionPreset(preset);
+    if (!ok) {
+      debugPrint('setResolutionPreset($preset) failed.');
+      return;
+    }
+    final width = await _camera.getWidth();
+    final height = await _camera.getHeight();
+    if (!mounted || width <= 0 || height <= 0) return;
+    setState(() {
+      _frameWidth = width;
+      _frameHeight = height;
+    });
+  }
+
   Future<void> _stopCamera() async {
     _shouldCapture = false;
     if (!_cameraOpened) return;
@@ -217,10 +239,15 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
 
   Future<void> _captureLoop() async {
     if (!_shouldCapture || !_cameraOpened) return;
-    if (!_isCapturing) {
+    // Mirrors the flutter_barcode_sdk example: at most one frame is in
+    // flight, and the next frame is only grabbed after the previous decode
+    // has completed. No pixel work happens on the UI isolate here — the raw
+    // RGB buffer goes straight to the native SDK, which processes it on its
+    // own worker threads.
+    if (!_isCapturing && _sdkReady) {
       _isCapturing = true;
       try {
-        final frame = await _camera.captureFrame();
+        final frame = await _camera.captureFrame(byteOrder: _byteOrder);
         final source = _RgbFrame.fromCameraFrame(frame);
         if (source != null) {
           final response = await _vision.captureBuffer(
@@ -250,7 +277,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
     }
     if (_shouldCapture) {
       await Future<void>.delayed(const Duration(milliseconds: 30));
-      unawaited(_captureLoop());
+      if (_shouldCapture) unawaited(_captureLoop());
     }
   }
 
@@ -338,35 +365,13 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         ),
       ],
     ),
+    // Fixed layout regions: the mode selector, the result panel and the
+    // control row all have fixed heights, so the camera preview keeps a
+    // stable size while results stream in. Result text scrolls inside its
+    // own region instead of squeezing the preview.
     body: Column(
       children: [
-        Material(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: RadioGroup<_VisionMode>(
-            groupValue: _mode,
-            onChanged: (value) {
-              if (value == null || _cameraOpened) {
-                return;
-              }
-              setState(() {
-                _mode = value;
-                _result = null;
-              });
-              unawaited(_runSampleScene());
-            },
-            child: Column(
-              children: [
-                for (final mode in _VisionMode.values)
-                  RadioListTile<_VisionMode>(
-                    dense: true,
-                    title: Text(mode.title),
-                    value: mode,
-                    enabled: !_cameraOpened,
-                  ),
-              ],
-            ),
-          ),
-        ),
+        _buildModeSelector(),
         if (_sdkError != null)
           Padding(
             padding: const EdgeInsets.all(12),
@@ -376,29 +381,113 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
             ),
           ),
         Expanded(child: _buildPreview()),
+        const Divider(height: 1),
         _ResultPanel(mode: _mode, result: _result, status: _sceneStatus),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _cameraOpened ? _stopCamera : _startCamera,
-                  icon: Icon(_cameraOpened ? Icons.stop : Icons.play_arrow),
-                  label: Text(_cameraOpened ? 'Stop camera' : 'Start camera'),
+        _buildControls(),
+      ],
+    ),
+  );
+
+  Widget _buildModeSelector() => Material(
+    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    child: RadioGroup<_VisionMode>(
+      groupValue: _mode,
+      onChanged: (value) {
+        if (value != null && !_cameraOpened) _selectMode(value);
+      },
+      // One row keeps the selector compact and leaves more room for the
+      // camera preview.
+      child: Row(
+        children: [
+          for (final mode in _VisionMode.values)
+            Expanded(
+              child: InkWell(
+                onTap: _cameraOpened ? null : () => _selectMode(mode),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Radio<_VisionMode>(value: mode),
+                      Flexible(
+                        child: Text(
+                          mode.title,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              if (_mode == _VisionMode.document) ...[
-                const SizedBox(width: 12),
-                FilledButton.tonalIcon(
-                  onPressed: _lastFrame == null ? null : _captureDocument,
-                  icon: const Icon(Icons.document_scanner_outlined),
-                  label: const Text('Capture'),
-                ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  void _selectMode(_VisionMode mode) {
+    setState(() {
+      _mode = mode;
+      _result = null;
+      // MRZ characters are small; the recognition models need
+      // high-resolution frames, so default to 1080p for that mode.
+      if (_mode == _VisionMode.mrz) {
+        _preset = ResolutionPreset.veryHigh;
+      }
+    });
+    unawaited(_runSampleScene());
+  }
+
+  Widget _buildControls() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+    child: Row(
+      children: [
+        // Icon-only controls: the row stays compact even with the resolution
+        // picker and the document capture button beside it.
+        IconButton.filled(
+          tooltip: _cameraOpened ? 'Stop camera' : 'Start camera',
+          onPressed: _cameraOpened ? _stopCamera : _startCamera,
+          icon: Icon(_cameraOpened ? Icons.stop : Icons.play_arrow),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
+            child: DropdownButton<ResolutionPreset>(
+              value: _preset,
+              underline: const SizedBox.shrink(),
+              isExpanded: true,
+              items: [
+                for (final preset in ResolutionPreset.values)
+                  DropdownMenuItem(
+                    value: preset,
+                    child: Text(
+                      '${preset.name} (${preset.width}x${preset.height})',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
               ],
-            ],
+              onChanged: (preset) {
+                if (preset == null) return;
+                unawaited(_applyResolution(preset));
+              },
+            ),
           ),
         ),
+        if (_mode == _VisionMode.document) ...[
+          const SizedBox(width: 12),
+          IconButton.filledTonal(
+            tooltip: 'Capture document',
+            onPressed: _lastFrame == null ? null : _captureDocument,
+            icon: const Icon(Icons.document_scanner_outlined),
+          ),
+        ],
       ],
     ),
   );
@@ -414,37 +503,43 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         final width = _frameWidth > 0 ? _frameWidth : 4;
         final height = _frameHeight > 0 ? _frameHeight : 3;
         final rotated = _textureId >= 0 && _rotation % 180 == 90;
-        final aspect = rotated ? height / width : width / height;
-        final availableAspect = constraints.maxWidth / constraints.maxHeight;
-        final displayWidth = aspect > availableAspect
-            ? constraints.maxWidth
-            : constraints.maxHeight * aspect;
-        final displayHeight = aspect > availableAspect
-            ? constraints.maxWidth / aspect
-            : constraints.maxHeight;
-        return Center(
-          child: SizedBox(
-            width: displayWidth,
-            height: displayHeight,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (_textureId >= 0)
-                  RotatedBox(
-                    quarterTurns: (_rotation ~/ 90) % 4,
-                    child: _camera.buildPreview(_textureId),
-                  )
-                else
-                  Image.memory(_lastFrame!.pngBytes, fit: BoxFit.fill),
-                CustomPaint(
-                  painter: _VisionOverlayPainter(
-                    mode: _mode,
-                    result: _result,
-                    sourceWidth: width,
-                    sourceHeight: height,
+        // Cover-fit: scale the frame until it fills the whole widget, then
+        // clip the overflow. The preview never letterboxes.
+        final frameW = rotated ? height : width;
+        final frameH = rotated ? width : height;
+        final scale = (constraints.maxWidth / frameW)
+            .clamp(constraints.maxHeight / frameH, double.infinity);
+        final drawWidth = frameW * scale;
+        final drawHeight = frameH * scale;
+        return ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.center,
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: SizedBox(
+              width: drawWidth,
+              height: drawHeight,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_textureId >= 0)
+                    RotatedBox(
+                      quarterTurns: (_rotation ~/ 90) % 4,
+                      child: _camera.buildPreview(_textureId),
+                    )
+                  else
+                    Image.memory(_lastFrame!.pngBytes, fit: BoxFit.fill),
+                  CustomPaint(
+                    painter: _VisionOverlayPainter(
+                      mode: _mode,
+                      result: _result,
+                      sourceWidth: width,
+                      sourceHeight: height,
+                      rotation: _rotation,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -462,44 +557,39 @@ class _ResultPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (result == null) {
-      return Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(minHeight: 72),
-        padding: const EdgeInsets.all(12),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Text(status ?? ''),
-      );
-    }
-    final text = switch (mode) {
-      _VisionMode.barcode =>
-        result!.barcodes.isEmpty
-            ? 'No barcode found.'
-            : result!.barcodes
-                  .take(2)
-                  .map((item) => '${item.format}: ${item.text}')
-                  .join('\n'),
-      _VisionMode.mrz =>
-        result!.mrzResults.isEmpty
-            ? 'No MRZ found.'
-            : result!.mrzResults
-                  .take(1)
-                  .map(
-                    (item) => item.rawText.isEmpty
-                        ? item.fields.values.join('\n')
-                        : item.rawText,
-                  )
-                  .join('\n'),
-      _VisionMode.document =>
-        '${result!.documentDetections.length} document '
-            'boundaries found.',
-    };
+    final text = result == null
+        ? (status ?? '')
+        : switch (mode) {
+          _VisionMode.barcode =>
+            result!.barcodes.isEmpty
+                ? 'No barcode found.'
+                : result!.barcodes
+                      .take(2)
+                      .map((item) => '${item.format}: ${item.text}')
+                      .join('\n'),
+          _VisionMode.mrz =>
+            result!.mrzResults.isEmpty
+                ? 'No MRZ found.'
+                : result!.mrzResults
+                      .take(1)
+                      .map(
+                        (item) => item.rawText.isEmpty
+                            ? item.fields.values.join('\n')
+                            : item.rawText,
+                      )
+                      .join('\n'),
+          _VisionMode.document =>
+            '${result!.documentDetections.length} document '
+                'boundaries found.',
+        };
+    // A fixed height keeps the camera preview above stable no matter how
+    // much text a result contains; overflowing text scrolls inside.
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 72),
+      height: 120,
       padding: const EdgeInsets.all(12),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: SingleChildScrollView(child: Text(text)),
+      child: SingleChildScrollView(child: SelectableText(text)),
     );
   }
 }
@@ -731,12 +821,45 @@ class _VisionOverlayPainter extends CustomPainter {
     required this.result,
     required this.sourceWidth,
     required this.sourceHeight,
+    required this.rotation,
   });
 
   final _VisionMode mode;
   final CaptureVisionResult? result;
   final int sourceWidth;
   final int sourceHeight;
+  final int rotation;
+
+  /// Maps a point from source-frame coordinates onto the display canvas,
+  /// applying the same clockwise rotation as the preview widget.
+  Offset _transform(double x, double y, Size size) {
+    final double nx;
+    final double ny;
+    switch ((rotation ~/ 90) % 4) {
+      case 1: // 90° clockwise: canvas becomes sourceHeight x sourceWidth
+        nx = sourceHeight - y;
+        ny = x;
+      case 2: // 180°
+        nx = sourceWidth - x;
+        ny = sourceHeight - y;
+      case 3: // 270° clockwise
+        nx = y;
+        ny = sourceWidth - x;
+      default: // 0°
+        nx = x;
+        ny = y;
+    }
+    final double canvasW;
+    final double canvasH;
+    if ((rotation ~/ 90) % 2 == 1) {
+      canvasW = sourceHeight.toDouble();
+      canvasH = sourceWidth.toDouble();
+    } else {
+      canvasW = sourceWidth.toDouble();
+      canvasH = sourceHeight.toDouble();
+    }
+    return Offset(nx / canvasW * size.width, ny / canvasH * size.height);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -761,10 +884,7 @@ class _VisionOverlayPainter extends CustomPainter {
       final path = Path();
       for (var index = 0; index < location.points.length; index++) {
         final point = location.points[index];
-        final offset = Offset(
-          point.x / sourceWidth * size.width,
-          point.y / sourceHeight * size.height,
-        );
+        final offset = _transform(point.x, point.y, size);
         if (index == 0) {
           path.moveTo(offset.dx, offset.dy);
         } else {
@@ -781,7 +901,8 @@ class _VisionOverlayPainter extends CustomPainter {
       oldDelegate.mode != mode ||
       oldDelegate.result != result ||
       oldDelegate.sourceWidth != sourceWidth ||
-      oldDelegate.sourceHeight != sourceHeight;
+      oldDelegate.sourceHeight != sourceHeight ||
+      oldDelegate.rotation != rotation;
 }
 
 class _DocumentCornersPainter extends CustomPainter {
@@ -828,24 +949,37 @@ class _DocumentCornersPainter extends CustomPainter {
 }
 
 class _RgbFrame {
-  const _RgbFrame({
-    required this.pngBytes,
+  _RgbFrame({
     required this.rgb,
     required this.width,
     required this.height,
   });
 
-  final Uint8List pngBytes;
   final Uint8List rgb;
   final int width;
   final int height;
 
-  static _RgbFrame fromSample(SampleImage sample) => _RgbFrame(
-    pngBytes: sample.pngBytes,
-    rgb: sample.rgb,
-    width: sample.width,
-    height: sample.height,
+  Uint8List? _pngBytes;
+
+  /// PNG encoding is pure-Dart and takes hundreds of milliseconds for a
+  /// 1080p frame, so it is never done while the camera is running. It runs
+  /// once, lazily, when the still frame actually needs to be displayed
+  /// (after the camera stops or for the document editor). The bytes are
+  /// copied first: on web the recognition pipeline can detach the original
+  /// buffer once it has been handed to the SDK.
+  Uint8List get pngBytes => _pngBytes ??= Uint8List.fromList(
+    image.encodePng(
+      image.Image.fromBytes(
+        width: width,
+        height: height,
+        bytes: Uint8List.fromList(rgb).buffer,
+        numChannels: 3,
+      ),
+    ),
   );
+
+  static _RgbFrame fromSample(SampleImage sample) =>
+      _RgbFrame(rgb: sample.rgb, width: sample.width, height: sample.height);
 
   static _RgbFrame? fromCameraFrame(Map<String, dynamic> values) {
     final bytes = values['data'];
@@ -857,20 +991,8 @@ class _RgbFrame {
         bytes.lengthInBytes < width * height * 3) {
       return null;
     }
-    final png = image.encodePng(
-      image.Image.fromBytes(
-        width: width,
-        height: height,
-        bytes: bytes.buffer,
-        numChannels: 3,
-      ),
-    );
-    return _RgbFrame(
-      pngBytes: Uint8List.fromList(png),
-      rgb: bytes,
-      width: width,
-      height: height,
-    );
+    // Keep the raw RGB buffer only; encoding happens lazily via pngBytes.
+    return _RgbFrame(rgb: bytes, width: width, height: height);
   }
 
   static Future<_RgbFrame> fromFile(XFile file) async {
@@ -878,11 +1000,8 @@ class _RgbFrame {
     if (decoded == null) {
       throw StateError('The selected file is not a supported image.');
     }
-    final rgb = decoded.getBytes(order: image.ChannelOrder.rgb);
-    final png = image.encodePng(decoded);
     return _RgbFrame(
-      pngBytes: Uint8List.fromList(png),
-      rgb: rgb,
+      rgb: decoded.getBytes(order: image.ChannelOrder.rgb),
       width: decoded.width,
       height: decoded.height,
     );
@@ -920,3 +1039,5 @@ String _filterLabel(DocumentFilter filter) => switch (filter) {
   DocumentFilter.grayscale => 'Grayscale',
   DocumentFilter.blackAndWhite => 'B/W',
 };
+
+

@@ -22,3 +22,4 @@ workspace:
   - packages/flutter_capture_vision_macos/example
   - packages/flutter_capture_vision_linux
   - packages/flutter_capture_vision_linux/example
+

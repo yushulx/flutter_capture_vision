@@ -126,7 +126,10 @@ class FlutterCaptureVisionWeb extends CaptureVisionPlatform {
     CaptureVisionRequest request,
   ) {
     final imageData = JSObject();
-    _set(imageData, 'bytes', buffer.bytes.toJS);
+    // Hand the SDK a copy of the bytes: the recognition pipeline may
+    // transfer the underlying ArrayBuffer into its worker, which detaches
+    // the caller's buffer and breaks any later read of it.
+    _set(imageData, 'bytes', Uint8List.fromList(buffer.bytes).toJS);
     _set(imageData, 'width', buffer.width.toJS);
     _set(imageData, 'height', buffer.height.toJS);
     _set(imageData, 'stride', buffer.stride.toJS);
