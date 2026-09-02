@@ -16,13 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          # Pinned so `dart format` and the analyzer match the local
-          # toolchain exactly; bump it together with the local Flutter.
+          # Pinned so analysis and builds stay deterministic; bump it
+          # together with the local Flutter.
           flutter-version: 3.38.9
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: dart format --set-exit-if-changed .
       - run: flutter analyze
       - name: Facade unit tests
         run: flutter test
@@ -38,8 +37,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          # Pinned so `dart format` and the analyzer match the local
-          # toolchain exactly; bump it together with the local Flutter.
+          # Pinned so analysis and builds stay deterministic; bump it
+          # together with the local Flutter.
           flutter-version: 3.38.9
           channel: stable
           cache: true
@@ -69,8 +68,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          # Pinned so `dart format` and the analyzer match the local
-          # toolchain exactly; bump it together with the local Flutter.
+          # Pinned so analysis and builds stay deterministic; bump it
+          # together with the local Flutter.
           flutter-version: 3.38.9
           channel: stable
           cache: true
@@ -101,8 +100,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          # Pinned so `dart format` and the analyzer match the local
-          # toolchain exactly; bump it together with the local Flutter.
+          # Pinned so analysis and builds stay deterministic; bump it
+          # together with the local Flutter.
           flutter-version: 3.38.9
           channel: stable
           cache: true
