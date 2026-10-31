@@ -115,7 +115,7 @@ The MRZ Scanner bundle used on Android and iOS is a superset of the Capture Visi
 ## Platform Notes
 
 - **Android**: `minSdkVersion 21`.
-- **iOS**: requires iOS 13+; add `NSCameraUsageDescription` when using a camera plugin.
+- **iOS**: requires iOS 16+ — the MRZ Scanner bundle's Core ML models set that floor. Add `NSCameraUsageDescription` when using a camera plugin.
 - **Web**: serve over HTTPS or `localhost`. The JS/WASM/models bundle is self-hosted as package assets — no CDN `<script>` tag is needed.
 - **Windows/Linux/macOS**: the released app bundle carries the DCV libraries and resources; see each platform package README for details.
 

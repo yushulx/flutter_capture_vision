@@ -188,14 +188,25 @@ jobs:
       - name: Verify Linux bundle
         run: |
           set -e
-          bundle=$(find packages/flutter_capture_vision/example/build/linux -maxdepth 3 -type d -name bundle | head -1)
+          bundle=$(find packages/flutter_capture_vision/example/build/linux -maxdepth 5 -type d -name bundle | head -1)
+          echo "bundle: ${bundle:-<not found>}"
           test -n "$bundle"
-          test -d "$bundle/lib/Templates"
-          test -d "$bundle/lib/Models"
-          ls "$bundle"/lib/libDynamsoft*.so | head
-          # The registrar is what makes the plugin visible to the engine; a
-          # hidden symbol here means the app runs without the plugin registered.
-          nm -D --defined-only "$bundle"/lib/libflutter_capture_vision_linux_plugin.so | grep -q 'FlutterCaptureVisionPluginRegisterWithRegistrar'
+          ls "$bundle/lib" | head -20
+          # DCV resolves Templates/Models/ParserResources relative to its shared
+          # libraries, so CMake must install them under lib/ next to the .so files.
+          for dir in Templates Models ParserResources; do
+            if [ ! -d "$bundle/lib/$dir" ]; then
+              echo "::error::$dir is missing under $bundle/lib"
+              find "$bundle" -maxdepth 2 -type d
+              exit 1
+            fi
+          done
+          ls "$bundle"/lib/libDynamsoft*.so
+          # The registrar is what makes the plugin visible to the engine; the
+          # symbol is the snake_case C entry point from the plugin source.
+          nm -D --defined-only "$bundle"/lib/libflutter_capture_vision_linux_plugin.so \
+            | grep -q 'flutter_capture_vision_plugin_register_with_registrar'
+          echo "registrar symbol exported"
 
   # ---------------------------------------------------------------------------
   # macOS: verifies the podspec compiles and links the vendored dylibs, and that

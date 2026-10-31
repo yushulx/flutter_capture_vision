@@ -15,7 +15,7 @@ An asynchronous Flutter bridge for Dynamsoft Capture Vision on iOS.
   # ships the MRZ neural models and a working built-in MRZ template, without
   # which the plain bundle's MRZ templates produce no results.
   s.dependency 'DynamsoftMRZScannerBundle', '3.6.2000'
-  s.platform         = :ios, '13.0'
+  s.platform         = :ios, '16.0'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'

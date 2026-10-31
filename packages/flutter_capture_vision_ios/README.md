@@ -9,7 +9,7 @@ Endorsed `default_package` for the facade — you normally depend only on `flutt
 - Swift plugin bridging to the Dynamsoft Capture Vision CocoaPods bundle. The podspec depends on `DynamsoftMRZScannerBundle` 3.6.2000 — a superset of `DynamsoftCaptureVisionBundle` that also ships the MRZ neural models and a working built-in MRZ template.
 - All SDK work is confined to a serial worker queue; results are delivered back on the main queue. License verification is asynchronous and completes the `initialize` call.
 - Default task → template mapping: `barcode` → `ReadBarcodes_Default`, `mrz` → `ReadPassportAndId`, `documentDetection` → `DetectDocumentBoundaries_Default`. Custom template names from imported settings JSON are passed through unchanged.
-- The podspec declares the minimum iOS version and required pods; models and parser resources arrive with the pod. No license key is embedded — pass it to `FlutterCaptureVision.initialize`.
+- The podspec declares a minimum iOS version of 16.0 — the MRZ Scanner bundle's Core ML models require it, up from 13.0 in earlier releases — plus the required pods; models and parser resources arrive with the pod. No license key is embedded — pass it to `FlutterCaptureVision.initialize`.
 - Verify on both device and simulator architectures before release.
 
 See `example/` for a minimal app exercising this implementation.
