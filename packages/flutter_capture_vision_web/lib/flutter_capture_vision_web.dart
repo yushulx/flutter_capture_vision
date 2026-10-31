@@ -37,7 +37,7 @@ class FlutterCaptureVisionWeb extends CaptureVisionPlatform {
   static const _assetRoot =
       'assets/packages/flutter_capture_vision_web/assets/dcv/';
   static const _bundleUrl =
-      '${_assetRoot}dynamsoft-capture-vision-bundle@3.6.2000/dist/dcv.bundle.js';
+      '${_assetRoot}dynamsoft-capture-vision-bundle@3.6.3200/dist/dcv.bundle.js';
 
   // The web engine ships no built-in MRZ preset; MRZ captures run through the
   // `ReadMRZ` template from the reference sample, imported lazily, while

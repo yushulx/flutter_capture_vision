@@ -127,30 +127,39 @@ class SampleImage {
     const width = 960;
     const height = 720;
     final canvas = image.Image(width: width, height: height);
-    image.fill(canvas, color: image.ColorRgb8(96, 104, 112));
+    image.fill(canvas, color: image.ColorRgb8(88, 96, 106));
     // A slightly rotated white "page" on a plain desk gives the detector four
-    // clean corners.
+    // clean corners. The page fills most of the frame: the preview shows the
+    // whole image (letterboxed), so a small page would end up too small to read
+    // the text lines once the sample is scaled down.
     final page = [
-      image.Point(150, 105),
-      image.Point(838, 150),
-      image.Point(800, 610),
-      image.Point(120, 570),
+      image.Point(60, 45),
+      image.Point(905, 75),
+      image.Point(875, 680),
+      image.Point(45, 645),
     ];
     image.drawPolygon(
       canvas,
       vertices: page,
-      color: image.ColorRgb8(250, 250, 248),
+      color: image.ColorRgb8(252, 252, 250),
     );
-    // A few text-ish lines so the page does not look empty.
-    for (var row = 0; row < 9; row++) {
+    // Text-ish lines, interpolated along both page edges so every row stays
+    // inside the sheet instead of running off the bottom.
+    const rows = 9;
+    for (var row = 0; row < rows; row++) {
+      final t = (row + 0.7) / (rows + 0.4);
+      final leftX = page[0].x + (page[3].x - page[0].x) * t + 70;
+      final leftY = page[0].y + (page[3].y - page[0].y) * t;
+      final rightX = page[1].x + (page[2].x - page[1].x) * t - 70;
+      final rightY = page[1].y + (page[2].y - page[1].y) * t;
       image.drawLine(
         canvas,
-        x1: (page[0].x + 60).toInt(),
-        y1: (page[0].y + 60 + row * 48).toInt(),
-        x2: (page[3].x + 40).toInt(),
-        y2: (page[3].y + 40 + row * 48).toInt(),
-        color: image.ColorRgb8(70, 74, 80),
-        thickness: 4,
+        x1: leftX.toInt(),
+        y1: leftY.toInt(),
+        x2: rightX.toInt(),
+        y2: rightY.toInt(),
+        color: image.ColorRgb8(72, 76, 84),
+        thickness: 6,
       );
     }
     return _encode(canvas);

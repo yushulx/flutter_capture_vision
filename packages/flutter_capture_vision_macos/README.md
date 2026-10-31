@@ -6,7 +6,7 @@ Endorsed `default_package` for the facade — you normally depend only on `flutt
 
 ## Implementation notes
 
-- Objective-C++ plugin over the DCV desktop SDK (`CCaptureVisionRouter`); dylibs and the full resource set (Templates, Models, ParserResources, root `.data` files) are vendored into this package and copied into the app bundle where the SDK can find them — not into a buried resource bundle.
+- Objective-C++ plugin over the Dynamsoft Capture Vision desktop SDK 3.6.5000 (`CCaptureVisionRouter`); universal2 dylibs and the full resource set (Templates, Models, ParserResources, root `.data` files) are vendored into this package and copied into the app bundle where the SDK can find them — not into a buried resource bundle.
 - All channel operations run on a serial GCD worker queue; the method channel returns immediately and replies asynchronously on the main queue.
 - Before release, verify `codesign --verify` on the built app, that rpaths resolve (`otool -L`), and that notarization covers the bundled dylibs.
 - Default task → template mapping: `barcode` → `ReadBarcodes_Default`, `mrz` → `ReadPassportAndId`, `documentDetection` → `DetectDocumentBoundaries_Default`. Custom names from imported settings JSON are passed through unchanged.

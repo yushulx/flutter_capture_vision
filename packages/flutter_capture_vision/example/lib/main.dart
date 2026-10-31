@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:image/image.dart' as image;
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'demo_bridge.dart';
 import 'document_export.dart';
 import 'sample_images.dart';
 
@@ -49,11 +51,11 @@ class CaptureVisionHomePage extends StatefulWidget {
 }
 
 class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
-  // To read barcodes, MRZ, and documents, get a 30-day FREE trial license for
-  // Dynamsoft Capture Vision:
+  // The key comes from the hosting page on the web demo (a Codepool license
+  // bound to dynamsoft.com) and from the trial key on native builds. To read
+  // barcodes, MRZ, and documents with your own license, get a 30-day FREE trial:
   // https://www.dynamsoft.com/customer/license/trialLicense/?product=dcv&package=cross-platform
-  static const String _licenseKey =
-      'DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==';
+  final String _licenseKey = resolveDemoLicenseKey();
 
   final FlutterLiteCamera _camera = FlutterLiteCamera();
   final FlutterCaptureVision _vision = FlutterCaptureVision();
@@ -65,6 +67,9 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
   bool _shouldCapture = false;
   bool _isCapturing = false;
   bool _isPickingImage = false;
+  /// The capture loop runs continuously; the demo reports one success per
+  /// camera session rather than one per frame.
+  bool _cameraHitReported = false;
   int _textureId = -1;
   int _frameWidth = 0;
   int _frameHeight = 0;
@@ -78,6 +83,10 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
   // plugin default, verified against on-device colors; other devices can
   // pass a different order through captureFrame(byteOrder:).
   final int _byteOrder = 5;
+
+  /// Wall-clock start of SDK initialization, reported as the demo's engine load
+  /// time once the router is usable.
+  final DateTime _initStartedAt = DateTime.now();
 
   @override
   void initState() {
@@ -98,11 +107,17 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
     try {
       await _vision.initialize(licenseKey: _licenseKey);
       if (mounted) setState(() => _sdkReady = true);
+      reportDemoReady(
+        DateTime.now().difference(_initStartedAt).inMilliseconds,
+      );
       // Prove the SDK works immediately: run the built-in sample scene for
       // the selected mode before any camera or file is involved.
       await _runSampleScene();
     } catch (error) {
       if (mounted) setState(() => _sdkError = '$error');
+      // A license that cannot activate on this host is the failure mode the
+      // hosted demo cares about, so report it separately from usage events.
+      reportDemoError('init_failed', '$error');
     }
   }
 
@@ -146,6 +161,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
       );
       _setSceneStatus('Sample scanned:');
       if (mounted) setState(() => _result = response);
+      reportDemoScanSuccess(_mode.name, 'sample');
     } catch (error) {
       _setSceneStatus('The sample scene failed: $error');
       _showMessage('The sample scene failed: $error');
@@ -194,6 +210,8 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         _shouldCapture = true;
         _result = null;
       });
+      _cameraHitReported = false;
+      reportDemoScanStart(_mode.name, 'camera');
       unawaited(_captureLoop());
     } catch (error) {
       _showMessage('Could not start the camera: $error');
@@ -268,6 +286,10 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
               _result = response;
             });
           }
+          if (!_cameraHitReported && _hasHits(response)) {
+            _cameraHitReported = true;
+            reportDemoScanSuccess(_mode.name, 'camera');
+          }
         }
       } catch (_) {
         // A frame may be unavailable while the camera is starting or stopping.
@@ -284,10 +306,19 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
   CaptureVisionRequest _currentRequest() =>
       CaptureVisionRequest.forTasks([_mode.task]);
 
+  /// True when a capture produced at least one result for the active mode.
+  bool _hasHits(CaptureVisionResult result) => switch (_mode) {
+    _VisionMode.barcode => result.barcodes.isNotEmpty,
+    _VisionMode.mrz => result.mrzResults.isNotEmpty,
+    _VisionMode.document => result.documentDetections.isNotEmpty,
+  };
+
   Future<void> _scanImageFile() async {
     if (!_sdkReady || _isPickingImage) return;
     await _stopCamera();
     setState(() => _isPickingImage = true);
+    final mode = _mode.name;
+    reportDemoScanStart(mode, 'file');
     try {
       final file = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (file == null) return;
@@ -316,7 +347,9 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
           result.documentDetections.isNotEmpty) {
         await _openDocumentEditor(frame, result.documentDetections.first);
       }
+      reportDemoScanSuccess(mode, 'file');
     } catch (error) {
+      reportDemoScanFail(mode, 'file');
       _showMessage('Could not scan the selected image: $error');
     } finally {
       if (mounted) setState(() => _isPickingImage = false);
@@ -435,6 +468,7 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         _preset = ResolutionPreset.veryHigh;
       }
     });
+    reportDemoAction('mode_switch', {'mode': mode.name});
     unawaited(_runSampleScene());
   }
 
@@ -509,43 +543,56 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
             ? _rotation
             : (_lastFrame?.rotation ?? 0);
         final rotated = rotation % 180 == 90;
-        // Cover-fit: scale the frame until it fills the whole widget, then
-        // clip the overflow. The preview never letterboxes.
         final frameW = rotated ? height : width;
         final frameH = rotated ? width : height;
-        final scale = (constraints.maxWidth / frameW).clamp(
-          constraints.maxHeight / frameH,
-          double.infinity,
-        );
+        // A live camera feed is cropped to fill the preview: letterboxing a
+        // video looks broken and the overlay tracks the visible pixels anyway.
+        // A still image (built-in sample or a picked file) is shown whole
+        // instead — cropping a passport or a page hides exactly the content the
+        // demo is supposed to show.
+        final scale = _textureId >= 0
+            ? math.max(
+                constraints.maxWidth / frameW,
+                constraints.maxHeight / frameH,
+              )
+            : math.min(
+                constraints.maxWidth / frameW,
+                constraints.maxHeight / frameH,
+              );
         final drawWidth = frameW * scale;
         final drawHeight = frameH * scale;
-        return ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.center,
-            maxWidth: double.infinity,
-            maxHeight: double.infinity,
-            child: SizedBox(
-              width: drawWidth,
-              height: drawHeight,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  RotatedBox(
-                    quarterTurns: (rotation ~/ 90) % 4,
-                    child: _textureId >= 0
-                        ? _camera.buildPreview(_textureId)
-                        : Image.memory(_lastFrame!.pngBytes, fit: BoxFit.fill),
-                  ),
-                  CustomPaint(
-                    painter: _VisionOverlayPainter(
-                      mode: _mode,
-                      result: _result,
-                      sourceWidth: width,
-                      sourceHeight: height,
-                      rotation: rotation,
+        return ColoredBox(
+          // Dark backing so the letterbox bars of a still image read as a
+          // viewer background rather than a layout bug.
+          color: const Color(0xFF1F1F1F),
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.center,
+              maxWidth: double.infinity,
+              maxHeight: double.infinity,
+              child: SizedBox(
+                width: drawWidth,
+                height: drawHeight,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    RotatedBox(
+                      quarterTurns: (rotation ~/ 90) % 4,
+                      child: _textureId >= 0
+                          ? _camera.buildPreview(_textureId)
+                          : Image.memory(_lastFrame!.pngBytes, fit: BoxFit.fill),
                     ),
-                  ),
-                ],
+                    CustomPaint(
+                      painter: _VisionOverlayPainter(
+                        mode: _mode,
+                        result: _result,
+                        sourceWidth: width,
+                        sourceHeight: height,
+                        rotation: rotation,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -564,40 +611,44 @@ class _ResultPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = result == null
-        ? (status ?? '')
-        : switch (mode) {
-            _VisionMode.barcode =>
-              result!.barcodes.isEmpty
-                  ? 'No barcode found.'
-                  : result!.barcodes
-                        .take(2)
-                        .map((item) => '${item.format}: ${item.text}')
-                        .join('\n'),
-            _VisionMode.mrz =>
-              result!.mrzResults.isEmpty
-                  ? 'No MRZ found.'
-                  : result!.mrzResults
-                        .take(1)
-                        .map(
-                          (item) => item.rawText.isEmpty
-                              ? item.fields.values.join('\n')
-                              : item.rawText,
-                        )
-                        .join('\n'),
-            _VisionMode.document =>
-              '${result!.documentDetections.length} document '
-                  'boundaries found.',
-          };
-    // A fixed height keeps the camera preview above stable no matter how
-    // much text a result contains; overflowing text scrolls inside.
+    // The panel grows with the result text but never past its cap, so a single
+    // line (barcode, document count) leaves more room for the preview while a
+    // full MRZ block stays readable; anything longer scrolls inside.
     return Container(
       width: double.infinity,
-      height: 120,
+      constraints: const BoxConstraints(minHeight: 96, maxHeight: 156),
       padding: const EdgeInsets.all(12),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: SingleChildScrollView(child: SelectableText(text)),
+      child: SingleChildScrollView(child: SelectableText(_describe())),
     );
+  }
+
+  String _describe() {
+    final result = this.result;
+    if (result == null) return status ?? '';
+    switch (mode) {
+      case _VisionMode.barcode:
+        return result.barcodes.isEmpty
+            ? 'No barcode found.'
+            : result.barcodes
+                  .take(2)
+                  .map((item) => '${item.format}: ${item.text}')
+                  .join('\n');
+      case _VisionMode.mrz:
+        if (result.mrzResults.isEmpty) return 'No MRZ found.';
+        final first = result.mrzResults.first;
+        // Both the raw zone and the parsed fields: the raw text proves the
+        // engine read the line, the fields prove the code parser ran.
+        final lines = <String>[
+          if (first.documentType != null) 'Type: ${first.documentType}',
+          if (first.rawText.isNotEmpty) first.rawText,
+          for (final entry in first.fields.entries)
+            '${entry.key}: ${entry.value}',
+        ];
+        return lines.isEmpty ? 'No MRZ found.' : lines.join('\n');
+      case _VisionMode.document:
+        return '${result.documentDetections.length} document boundaries found.';
+    }
   }
 }
 

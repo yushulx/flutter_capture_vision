@@ -5,6 +5,8 @@
 
 A cross-platform Flutter plugin for barcode reading, MRZ (passport/ID) recognition, and document boundary detection, powered by [Dynamsoft Capture Vision](https://www.dynamsoft.com/capture-vision/overview/). Supports **Android**, **iOS**, **Web**, **Windows**, **Linux**, and **macOS**.
 
+**[Try the live web demo →](https://www.dynamsoft.com/codepool/demos/flutter-capture-vision-scanner/)** — the example app running in your browser, no install or sign-up.
+
 ![Dynamsoft Capture Vision Flutter example: MRZ recognition on a passport](example/screenshot.png)
 
 The plugin wraps the Dynamsoft Capture Vision SDK of each platform behind one stable Dart API. It accepts image **files** or **raw pixel buffers**, so it composes with any camera plugin — for example [`flutter_lite_camera`](https://pub.dev/packages/flutter_lite_camera) for live preview and frame capture.
@@ -15,7 +17,7 @@ The plugin wraps the Dynamsoft Capture Vision SDK of each platform behind one st
 
 ```yaml
 dependencies:
-  flutter_capture_vision: ^0.1.0
+  flutter_capture_vision: ^0.2.0
 ```
 
 The Android, iOS, Web, Windows, macOS, and Linux implementations are endorsed federated packages and are selected automatically — depend only on `flutter_capture_vision`.
@@ -95,6 +97,21 @@ final result = await vision.captureFile(
 await vision.resetSettings();                                // restore factory defaults
 ```
 
+## Bundled SDK Versions
+
+Each platform package compiles against — or vendors — the current Dynamsoft Capture Vision release for that platform:
+
+| Platform | SDK | Version |
+| --- | --- | --- |
+| Android | `com.dynamsoft:mrzscannerbundle` | 3.6.2000 |
+| iOS | `DynamsoftMRZScannerBundle` | 3.6.2000 |
+| Web | `dynamsoft-capture-vision-bundle` (WASM, self-hosted) | 3.6.3200 |
+| Windows | Dynamsoft Capture Vision desktop bundle | 3.6.5000 |
+| macOS | Dynamsoft Capture Vision desktop bundle (universal2) | 3.6.5000 |
+| Linux | Dynamsoft Capture Vision desktop bundle (x64 and arm64) | 3.6.5000 |
+
+The MRZ Scanner bundle used on Android and iOS is a superset of the Capture Vision bundle: it also ships the MRZ neural models and the `mrzscanner-mobile-templates.json` template document, without which the built-in MRZ templates return no results. The desktop and web packages vendor the same templates, models, and parser resources inside the package, so no separate download or CDN script is required.
+
 ## Platform Notes
 
 - **Android**: `minSdkVersion 21`.
@@ -113,7 +130,7 @@ flutter run -d chrome       # Web
 flutter run -d windows      # Windows/Linux/macOS
 ```
 
-The [facade example](https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision/example) is the full six-platform demo with live camera capture, annotation overlay, and document export.
+The [facade example](https://github.com/yushulx/flutter_capture_vision/tree/main/packages/flutter_capture_vision/example) is the full six-platform demo with live camera capture, annotation overlay, and document export. Its web build is hosted at **[dynamsoft.com/codepool/demos/flutter-capture-vision-scanner](https://www.dynamsoft.com/codepool/demos/flutter-capture-vision-scanner/)** if you want to try the three vision tasks before installing anything.
 
 ## License
 

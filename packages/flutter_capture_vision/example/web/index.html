@@ -1,35 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+  <!-- App entry point for the flutter_capture_vision example.
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+       Served standalone by `flutter run -d chrome` and embedded as the iframe
+       of the hosted demo page on dynamsoft.com/codepool/demos/. The base href
+       is replaced by the value of `--base-href` passed to `flutter build`. -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Flutter Capture Vision demo: barcode reading, MRZ recognition and document boundary detection with Dynamsoft Capture Vision.">
+  <meta name="robots" content="noindex">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="flutter_capture_vision_example">
+  <meta name="apple-mobile-web-app-title" content="Flutter Capture Vision">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>flutter_capture_vision_example</title>
+  <!-- The web implementation of flutter_capture_vision self-hosts the DCV
+       WASM bundle (assets/packages/flutter_capture_vision_web), so this page
+       only has to decide which license key the app should use. -->
+  <!-- The page decides which key the app uses: the demo key when served from
+       dynamsoft.com, the SDK trial key anywhere else. The Flutter side reads it
+       through example/lib/demo_bridge.dart. -->
+  <script>
+    (function () {
+      var BOUND_HOSTS = ['dynamsoft.com'];
+      var CODEPOOL_LICENSE_KEY = 'DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAwLTEwMTY0ODQ5MCIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21sdHMuZHluYW1zb2Z0LmNvbS8iLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMCIsInN0YW5kYnlTZXJ2ZXJVUkwiOiJodHRwczovL3NsdHMuZHluYW1zb2Z0LmNvbS8iLCJjaGVja0NvZGUiOjE0MDA4MDY1Mjl9';
+      var TRIAL_LICENSE_KEY = 'DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==';
+
+      var host = window.location.hostname.toLowerCase();
+      var bound = BOUND_HOSTS.some(function (candidate) {
+        return host === candidate || host.endsWith('.' + candidate);
+      });
+
+      window.FLUTTER_CAPTURE_VISION_LICENSE = bound ? CODEPOOL_LICENSE_KEY : TRIAL_LICENSE_KEY;
+
+      if (!bound) {
+        console.info('[demo] Using the SDK trial license: the demo license is bound to '
+          + BOUND_HOSTS.join(', ') + ' and cannot activate on "' + host + '".');
+      }
+    })();
+  </script>
+
+  <title>Flutter Capture Vision</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>

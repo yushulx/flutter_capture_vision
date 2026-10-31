@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
@@ -503,14 +504,22 @@ class _CaptureVisionHomePageState extends State<CaptureVisionHomePage> {
         final width = _frameWidth > 0 ? _frameWidth : 4;
         final height = _frameHeight > 0 ? _frameHeight : 3;
         final rotated = _textureId >= 0 && _rotation % 180 == 90;
-        // Cover-fit: scale the frame until it fills the whole widget, then
-        // clip the overflow. The preview never letterboxes.
         final frameW = rotated ? height : width;
         final frameH = rotated ? width : height;
-        final scale = (constraints.maxWidth / frameW).clamp(
-          constraints.maxHeight / frameH,
-          double.infinity,
-        );
+        // A live camera feed is cropped to fill the preview: letterboxing a
+        // video looks broken and the overlay tracks the visible pixels anyway.
+        // A still image (built-in sample or a picked file) is shown whole
+        // instead — cropping a passport or a page hides exactly the content
+        // the demo is supposed to show.
+        final scale = _textureId >= 0
+            ? math.max(
+                constraints.maxWidth / frameW,
+                constraints.maxHeight / frameH,
+              )
+            : math.min(
+                constraints.maxWidth / frameW,
+                constraints.maxHeight / frameH,
+              );
         final drawWidth = frameW * scale;
         final drawHeight = frameH * scale;
         return ClipRect(
@@ -559,40 +568,44 @@ class _ResultPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = result == null
-        ? (status ?? '')
-        : switch (mode) {
-            _VisionMode.barcode =>
-              result!.barcodes.isEmpty
-                  ? 'No barcode found.'
-                  : result!.barcodes
-                        .take(2)
-                        .map((item) => '${item.format}: ${item.text}')
-                        .join('\n'),
-            _VisionMode.mrz =>
-              result!.mrzResults.isEmpty
-                  ? 'No MRZ found.'
-                  : result!.mrzResults
-                        .take(1)
-                        .map(
-                          (item) => item.rawText.isEmpty
-                              ? item.fields.values.join('\n')
-                              : item.rawText,
-                        )
-                        .join('\n'),
-            _VisionMode.document =>
-              '${result!.documentDetections.length} document '
-                  'boundaries found.',
-          };
-    // A fixed height keeps the camera preview above stable no matter how
-    // much text a result contains; overflowing text scrolls inside.
+    // The panel grows with the result text but never past its cap, so a single
+    // line (barcode, document count) leaves more room for the preview while a
+    // full MRZ block stays readable; anything longer scrolls inside.
     return Container(
       width: double.infinity,
-      height: 120,
+      constraints: const BoxConstraints(minHeight: 96, maxHeight: 156),
       padding: const EdgeInsets.all(12),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: SingleChildScrollView(child: SelectableText(text)),
+      child: SingleChildScrollView(child: SelectableText(_describe())),
     );
+  }
+
+  String _describe() {
+    final result = this.result;
+    if (result == null) return status ?? '';
+    switch (mode) {
+      case _VisionMode.barcode:
+        return result.barcodes.isEmpty
+            ? 'No barcode found.'
+            : result.barcodes
+                  .take(2)
+                  .map((item) => '${item.format}: ${item.text}')
+                  .join('\n');
+      case _VisionMode.mrz:
+        if (result.mrzResults.isEmpty) return 'No MRZ found.';
+        final first = result.mrzResults.first;
+        // Both the raw zone and the parsed fields: the raw text proves the
+        // engine read the line, the fields prove the code parser ran.
+        final lines = <String>[
+          if (first.documentType != null) 'Type: ${first.documentType}',
+          if (first.rawText.isNotEmpty) first.rawText,
+          for (final entry in first.fields.entries)
+            '${entry.key}: ${entry.value}',
+        ];
+        return lines.isEmpty ? 'No MRZ found.' : lines.join('\n');
+      case _VisionMode.document:
+        return '${result.documentDetections.length} document boundaries found.';
+    }
   }
 }
 

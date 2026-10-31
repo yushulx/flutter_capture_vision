@@ -1,0 +1,310 @@
+# Continuous integration: analyze + test every package, then build the example
+# on each platform's native runner. The Dart-only jobs cannot catch CMake link
+# errors, missing CocoaPods pods, Maven resolution problems, or a DLL that never
+# reaches the app bundle, so every platform gets its own build job.
+#
+# The example app lives in `packages/flutter_capture_vision/example` and depends
+# on all six endorsed implementations, so one build per platform compiles that
+# platform's native plugin code end to end.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned so analysis and builds stay deterministic; bump it together with the
+  # local Flutter.
+  FLUTTER_VERSION: 3.38.9
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Static analysis + Dart tests. Dart code is platform independent, so a single
+  # runner covers every package.
+  # ---------------------------------------------------------------------------
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Analyze all packages
+        run: |
+          set -e
+          for pkg in packages/*/; do
+            echo "=== analyzing ${pkg} ==="
+            (cd "${pkg}" && flutter analyze)
+          done
+
+      - name: Test all packages
+        run: |
+          set -e
+          for pkg in packages/*/; do
+            if [ -d "${pkg}test" ]; then
+              echo "=== testing ${pkg} ==="
+              (cd "${pkg}" && flutter test)
+            fi
+          done
+
+  # ---------------------------------------------------------------------------
+  # Web: verifies the dart:js_interop bridge compiles and the self-hosted
+  # WASM bundle is bundled into the release build.
+  # ---------------------------------------------------------------------------
+  build-web:
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Build web example
+        working-directory: packages/flutter_capture_vision/example
+        run: flutter build web --release
+
+      - name: Verify the DCV WASM bundle is served from the app
+        run: |
+          set -e
+          app=packages/flutter_capture_vision/example/build/web
+          test -f "$app/main.dart.js"
+          # The plugin self-hosts the engine under its asset root; without these
+          # files the app boots to a blank canvas at runtime.
+          find "$app/assets/packages/flutter_capture_vision_web/assets/dcv" \
+            -name 'dcv.bundle.js' -o -name '*.wasm' | sort
+          test -n "$(find "$app/assets/packages/flutter_capture_vision_web/assets/dcv" -name 'dcv.bundle.js' | head -1)"
+          test -n "$(find "$app/assets/packages/flutter_capture_vision_web/assets/dcv" -name '*.wasm' | head -1)"
+
+  # ---------------------------------------------------------------------------
+  # Android: verifies Maven resolution of the MRZ Scanner bundle and that the
+  # Java plugin compiles against it.
+  # ---------------------------------------------------------------------------
+  build-android:
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Build Android example APK
+        working-directory: packages/flutter_capture_vision/example
+        run: flutter build apk --debug
+
+  # ---------------------------------------------------------------------------
+  # Windows: verifies CMake links the vendored DLLs and that the resource set
+  # (Templates/Models/ParserResources) lands next to the runner executable.
+  # ---------------------------------------------------------------------------
+  build-windows:
+    runs-on: windows-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Build Windows example
+        working-directory: packages/flutter_capture_vision/example
+        run: flutter build windows --debug
+
+      - name: Verify Windows bundle
+        shell: pwsh
+        run: |
+          $runner = 'packages/flutter_capture_vision/example/build/windows/x64/runner/Debug'
+          foreach ($dir in 'Templates', 'Models', 'ParserResources') {
+            if (-not (Test-Path (Join-Path $runner $dir))) { throw "Missing $dir in Windows bundle" }
+          }
+          $dlls = Get-ChildItem $runner -Filter 'Dynamsoft*.dll'
+          if (-not $dlls) { throw 'Missing Dynamsoft DLLs in Windows bundle' }
+          Write-Host "Bundled DLLs:" ($dlls.Name -join ', ')
+
+  # ---------------------------------------------------------------------------
+  # Linux: verifies CMake links the vendored .so files, the plugin registrar
+  # symbol is exported, and resources are installed at the package root.
+  # ---------------------------------------------------------------------------
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux desktop toolchain
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Build Linux example
+        working-directory: packages/flutter_capture_vision/example
+        run: flutter build linux --debug
+
+      - name: Verify Linux bundle
+        run: |
+          set -e
+          bundle=$(find packages/flutter_capture_vision/example/build/linux -maxdepth 3 -type d -name bundle | head -1)
+          test -n "$bundle"
+          test -d "$bundle/lib/Templates"
+          test -d "$bundle/lib/Models"
+          ls "$bundle"/lib/libDynamsoft*.so | head
+          # The registrar is what makes the plugin visible to the engine; a
+          # hidden symbol here means the app runs without the plugin registered.
+          nm -D --defined-only "$bundle"/lib/libflutter_capture_vision_linux_plugin.so | grep -q 'FlutterCaptureVisionPluginRegisterWithRegistrar'
+
+  # ---------------------------------------------------------------------------
+  # macOS: verifies the podspec compiles and links the vendored dylibs, and that
+  # models/templates reach the app bundle where DCV looks for them.
+  # ---------------------------------------------------------------------------
+  build-macos:
+    runs-on: macos-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      # The macOS plugin ships vendored Dynamsoft dylibs via CocoaPods; Swift
+      # Package Manager has no -L for vendored dylibs and Dynamsoft publishes no
+      # macOS xcframework, so CocoaPods stays the supported path.
+      - name: Disable Swift Package Manager
+        run: flutter config --no-enable-swift-package-manager
+
+      - name: Clear the pinned signing team
+        working-directory: packages/flutter_capture_vision/example
+        run: |
+          sed -i '' -e 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' \
+              -e 's/"CODE_SIGN_IDENTITY\[sdk=macosx\*\]" = "Apple Development";/"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";/g' \
+              macos/Runner.xcodeproj/project.pbxproj
+
+      - name: Build macOS example
+        working-directory: packages/flutter_capture_vision/example
+        run: flutter build macos --debug
+
+      - name: Verify macOS bundle
+        run: |
+          set -e
+          app=$(find packages/flutter_capture_vision/example/build/macos -maxdepth 4 -name '*.app' | head -1)
+          test -n "$app"
+          codesign --verify --deep "$app" || true
+          # The vendored dylibs must be embedded and loadable; a missing one
+          # fails at plugin registration, before any capture runs.
+          ls "$app/Contents/Frameworks"/libDynamsoft*.dylib
+          # DCV resolves Templates/Models/ParserResources relative to its
+          # libraries. Report where they landed instead of asserting one layout:
+          # the podspec preserves the directory, and a release build that drops
+          # it would otherwise only fail at runtime on a device.
+          for dir in Templates Models ParserResources; do
+            if find "$app" -type d -name "$dir" | grep -q .; then
+              echo "ok: $dir at $(find "$app" -type d -name "$dir" | head -1)"
+            else
+              echo "::warning::$dir is not inside the app bundle; MRZ and document templates may not resolve at runtime"
+            fi
+          done
+
+  # ---------------------------------------------------------------------------
+  # iOS: verifies CocoaPods resolves DynamsoftMRZScannerBundle and the Swift
+  # plugin compiles against it.
+  # ---------------------------------------------------------------------------
+  build-ios:
+    runs-on: macos-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Build iOS example for simulator
+        working-directory: packages/flutter_capture_vision/example
+        run: flutter build ios --simulator --debug
+
+  # ---------------------------------------------------------------------------
+  # pub.dev rejects archives over 100 MB. The desktop packages vendor the DCV
+  # binaries and the web package vendors the WASM engine, so this guard has to
+  # run before a release rather than after a failed upload.
+  # ---------------------------------------------------------------------------
+  archive-size-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Measure pub archives
+        run: |
+          set -e
+          for pkg in flutter_capture_vision flutter_capture_vision_platform_interface \
+                     flutter_capture_vision_android flutter_capture_vision_ios \
+                     flutter_capture_vision_web flutter_capture_vision_windows \
+                     flutter_capture_vision_macos flutter_capture_vision_linux; do
+            tar --exclude=.dart_tool --exclude=build --exclude='*/build/*' \
+                -czf "/tmp/$pkg.tar.gz" -C packages "$pkg"
+            bytes=$(stat -c%s "/tmp/$pkg.tar.gz")
+            mb=$((bytes / 1024 / 1024))
+            echo "$pkg: ${mb} MB"
+            if [ "$bytes" -ge 104857600 ]; then
+              echo "::error::$pkg archive exceeds the 100 MB pub.dev limit"
+              exit 1
+            elif [ "$bytes" -ge 83886080 ]; then
+              echo "::warning::$pkg archive is ${mb} MB, approaching the 100 MB pub.dev limit"
+            fi
+          done

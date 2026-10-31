@@ -1,0 +1,152 @@
+# Manual, token-based publishing for the flutter_capture_vision monorepo.
+#
+# Publishing normally happens from a developer machine:
+#
+#   cd packages/<package> && dart pub publish
+#
+# There is deliberately NO tag trigger. Tagging a release used to start a
+# publish run, but the pub client never completes the OIDC exchange from this
+# repository: it skips OIDC and falls back to an interactive Google login that
+# a headless runner can never finish, so every tag produced a run that hung
+# until it was cancelled. Do not re-add a `push: tags:` trigger until that is
+# fixed upstream.
+#
+# What remains is a manual escape hatch for when the repository secret
+# `PUB_PUBLISH_AUTH_TOKEN` (create one at https://pub.dev/tokens) exists.
+# Without that secret the job fails immediately with instructions instead of
+# hanging on the login prompt.
+name: Publish to pub.dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to publish. "all" publishes every package in dependency order.'
+        required: true
+        default: all_without_facade
+        type: choice
+        options:
+          - all_without_facade
+          - all
+          - flutter_capture_vision
+          - flutter_capture_vision_platform_interface
+          - flutter_capture_vision_android
+          - flutter_capture_vision_ios
+          - flutter_capture_vision_web
+          - flutter_capture_vision_windows
+          - flutter_capture_vision_macos
+          - flutter_capture_vision_linux
+      dry_run:
+        description: 'Validate only (dart pub publish --dry-run), do not upload'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Kept for OIDC, in case the client-side issue is fixed
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.9
+          channel: stable
+          cache: true
+
+      - name: Resolve the publish list
+        id: packages
+        run: |
+          set -euo pipefail
+          INPUT="${{ inputs.package }}"
+
+          # Platform implementations depend on the platform interface; the
+          # facade depends on all of them. pub.dev resolves nothing during
+          # upload, but publishing in this order keeps the versions visible on
+          # pub.dev in the order users see them.
+          ORDER="flutter_capture_vision_platform_interface
+          flutter_capture_vision_android
+          flutter_capture_vision_ios
+          flutter_capture_vision_web
+          flutter_capture_vision_windows
+          flutter_capture_vision_macos
+          flutter_capture_vision_linux
+          flutter_capture_vision"
+
+          case "$INPUT" in
+            all) LIST="$ORDER" ;;
+            all_without_facade) LIST="$(echo "$ORDER" | head -n -1)" ;;
+            *) LIST="$INPUT" ;;
+          esac
+
+          for pkg in $LIST; do
+            if [ ! -f "packages/${pkg}/pubspec.yaml" ]; then
+              echo "::error::Package '${pkg}' not found under packages/"
+              exit 1
+            fi
+          done
+
+          echo "list<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$LIST" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Publishing: $(echo "$LIST" | tr '\n' ' ')"
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Verify the packages analyze cleanly
+        run: |
+          set -e
+          for pkg in ${{ steps.packages.outputs.list }}; do
+            echo "=== analyzing ${pkg} ==="
+            (cd "packages/${pkg}" && flutter analyze)
+          done
+
+      # Fail fast instead of waiting forever on the interactive login prompt.
+      - name: Check publishing credentials
+        if: ${{ !inputs.dry_run }}
+        env:
+          PUB_PUBLISH_AUTH_TOKEN: ${{ secrets.PUB_PUBLISH_AUTH_TOKEN }}
+        run: |
+          if [ -z "${PUB_PUBLISH_AUTH_TOKEN}" ]; then
+            echo "::error::PUB_PUBLISH_AUTH_TOKEN is not configured."
+            echo "Publish from a developer machine instead:"
+            echo "  cd packages/<package> && dart pub publish"
+            exit 1
+          fi
+
+      # The pub client only reads a token from an environment variable after it
+      # has been registered under that name in its credentials store.
+      - name: Register the publish token
+        if: ${{ !inputs.dry_run }}
+        env:
+          PUB_PUBLISH_AUTH_TOKEN: ${{ secrets.PUB_PUBLISH_AUTH_TOKEN }}
+        run: dart pub token add https://pub.dev --env-var PUB_PUBLISH_AUTH_TOKEN
+
+      - name: Dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          set -e
+          for pkg in ${{ steps.packages.outputs.list }}; do
+            echo "=== dry run ${pkg} ==="
+            (cd "packages/${pkg}" && dart pub publish --dry-run)
+          done
+
+      - name: Publish to pub.dev
+        if: ${{ !inputs.dry_run }}
+        env:
+          PUB_PUBLISH_AUTH_TOKEN: ${{ secrets.PUB_PUBLISH_AUTH_TOKEN }}
+        run: |
+          set -e
+          for pkg in ${{ steps.packages.outputs.list }}; do
+            echo "=== publishing ${pkg} ==="
+            (cd "packages/${pkg}" && dart pub publish --force)
+            # pub.dev rate-limits rapid successive uploads for the same
+            # publisher; a short pause keeps a multi-package release reliable.
+            sleep 20
+          done

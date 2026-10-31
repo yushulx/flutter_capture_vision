@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'flutter_capture_vision_macos'
-  s.version          = '0.1.0'
+  s.version          = '0.2.0'
   s.summary          = 'Dynamsoft Capture Vision for Flutter on macOS.'
   s.description      = 'Barcode, MRZ, and document-boundary detection for Flutter macOS.'
   s.homepage         = 'https://github.com/yushulx/flutter_capture_vision'
