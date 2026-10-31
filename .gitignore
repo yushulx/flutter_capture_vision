@@ -18,3 +18,8 @@ docs/
 **/xcuserdata/
 **/*.iml
 **/.idea/
+
+# The iOS example resolves Dynamsoft pods, so its lock pins a pod version that
+# has to be regenerated on macOS every time the bundled SDK changes — and a
+# stale lock makes `pod install` fail instead of updating. CI resolves it fresh.
+**/ios/Podfile.lock
