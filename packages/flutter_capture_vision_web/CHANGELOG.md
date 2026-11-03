@@ -1,3 +1,7 @@
+# 0.2.1
+
+* Update the self-hosted bundle to `dynamsoft-capture-vision-bundle` 3.6.5000 (patch release: license no longer expires on long-lived pages, Camera Enhancer fixes, third-party security updates; no API change).
+
 # 0.2.0
 
 * Update the self-hosted bundle to `dynamsoft-capture-vision-bundle` 3.6.3200 (was 3.6.2000), keeping `dynamsoft-capture-vision-data` 1.2.2 for models, templates, and parser resources.
